@@ -320,6 +320,7 @@ static const struct mtk_gate infra_clks[] __initconst = {
 	GATE(INFRACFG_AO_AP_DMA_CG, "infracfg_ao_ap_dma_cg",
 			"infracfg_ao_ap_dma_pseudo_cg",
 			infracfg_ao_module_sw_cg_4_regs, 31, 0),
+};
 
 static void __init mtk_infracfg_ao_init(struct device_node *node)
 {
