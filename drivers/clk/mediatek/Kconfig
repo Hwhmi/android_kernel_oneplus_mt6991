@@ -1019,5 +1019,13 @@ config COMMON_CLK_MT8516_AUDSYS
 	depends on COMMON_CLK_MT8516
 	help
 	  This driver supports MediaTek MT8516 audsys clocks.
+	  
+config COMMON_CLK_MT6893
+	tristate "Clock driver for MediaTek MT6893"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	select COMMON_CLK_MTK
+	help
+	  This driver supports MediaTek MT6893 clocks.
+	  Bring-up version: infracfg_ao gates only.
 
 endmenu
