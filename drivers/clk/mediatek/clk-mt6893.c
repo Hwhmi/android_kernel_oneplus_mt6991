@@ -5,9 +5,6 @@
  * Data derived from MT6885 source (OnePlus OSS), cross-checked against the
  * MT6893 device tree: UART0=23, UART1=24, UFS=80/63/65/81, MSDC0=31/33.
  * All 16 sampled IDs match MT6885 exactly.
- *
- * 本版本只注册 infracfg_ao 一类时钟，覆盖 UART / UFS / MSDC / USB。
- * gate 的父时钟用 fixed-rate 占位（lk 启动时已经把真实 PLL 打开）。
  */
 
 #include <linux/clk-provider.h>
@@ -22,7 +19,7 @@
 
 /* 4.19 的 GATE() 映射到 6.6 的 GATE_MTK() */
 #define GATE(_id, _name, _parent, _regs, _shift, _flags) \
-	GATE_MTK(_id, _name, _parent, _regs, _shift, &mtk_clk_gate_ops_setclr)
+	GATE_MTK(_id, _name, _parent, &_regs, _shift, &mtk_clk_gate_ops_setclr)
 
 static const struct mtk_gate_regs infracfg_ao_module_sw_cg_0_regs = {
 	.set_ofs = 0x80,
@@ -339,8 +336,8 @@ static void __init mtk_infracfg_ao_init(struct device_node *node)
 					NULL, 0, 26000000);
 	}
 
-	ret = mtk_clk_register_gates(node, infra_clks, ARRAY_SIZE(infra_clks),
-				     clk_data);
+	ret = mtk_clk_register_gates(NULL, node, infra_clks,
+				     ARRAY_SIZE(infra_clks), clk_data);
 	if (ret) {
 		pr_err("mt6893: register infracfg_ao gates failed: %d\n", ret);
 		return;
