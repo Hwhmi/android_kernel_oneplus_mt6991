@@ -12,6 +12,7 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <dt-bindings/clock/mt6893-clk.h>
 
 #include "clk-gate.h"
@@ -232,7 +233,7 @@ static const struct mtk_gate infra_clks[] __initconst = {
 			 infracfg_ao_module_sw_cg_2_regs, 27, 0),
 	GATE(INFRACFG_AO_UFS_CG, "infracfg_ao_ufs_cg", "ufs_sel",
 			 infracfg_ao_module_sw_cg_2_regs, 28, 0),
-	GATE(INFRACFG_AO_AES_UFSFDE_CG, "infracfg_ao_aes_cg", "aes_ufsfde_sel",
+	GATE(INFRACFG_AO_AES_UFSFDE_CG, "infracfg_ao_aes_ufsfde_cg", "aes_ufsfde_sel",
 			 infracfg_ao_module_sw_cg_2_regs, 29, 0),
 	GATE(INFRACFG_AO_UFS_TICK_CG, "infracfg_ao_ufs_tick_cg", "ufs_sel",
 			 infracfg_ao_module_sw_cg_2_regs, 30, 0),
@@ -328,12 +329,26 @@ static void __init mtk_infracfg_ao_init(struct device_node *node)
 	if (!clk_data)
 		return;
 
-	/* 父时钟占位：真实 PLL 已由 lk 初始化，这里只是让 gate 能注册 */
+	/* 父时钟占位：真实 PLL 已由 lk 初始化，这里只是让 gate 能注册。
+	 * 跳过「本身也是一个 gate」的名字，否则会与 register_gates 重复注册。 */
 	for (i = 0; i < ARRAY_SIZE(infra_clks); i++) {
-		if (!infra_clks[i].parent_name)
+		const char *p = infra_clks[i].parent_name;
+		bool skip = false;
+		int j;
+
+		if (!p)
 			continue;
-		clk_register_fixed_rate(NULL, infra_clks[i].parent_name,
-					NULL, 0, 26000000);
+
+		for (j = 0; j < ARRAY_SIZE(infra_clks); j++) {
+			if (!strcmp(infra_clks[j].name, p)) {
+				skip = true;
+				break;
+			}
+		}
+		if (skip)
+			continue;
+
+		clk_register_fixed_rate(NULL, p, NULL, 0, 26000000);
 	}
 
 	ret = mtk_clk_register_gates(NULL, node, infra_clks,
