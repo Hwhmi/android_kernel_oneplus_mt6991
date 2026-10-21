@@ -5,6 +5,9 @@
  * Data derived from MT6885 source (OnePlus OSS), cross-checked against the
  * MT6893 device tree: UART0=23, UART1=24, UFS=80/63/65/81, MSDC0=31/33.
  * All 16 sampled IDs match MT6885 exactly.
+ *
+ * 本版本只注册 infracfg_ao 一类时钟，覆盖 UART / UFS / MSDC / USB。
+ * gate 的父时钟用 fixed-rate 占位（lk 启动时已经把真实 PLL 打开）。
  */
 
 #include <linux/clk-provider.h>
@@ -13,6 +16,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/io.h>
 #include <dt-bindings/clock/mt6893-clk.h>
 
 #include "clk-gate.h"
@@ -320,10 +324,43 @@ static const struct mtk_gate infra_clks[] __initconst = {
 			infracfg_ao_module_sw_cg_4_regs, 31, 0),
 };
 
+/*
+ * MT6893 硬件看门狗（TOP RGU @ 0x10007000）
+ * lk 启动时把它打开了（超时 ~30s），需要 MTK 私有 watchdog 驱动喂狗。
+ * 6.6 没有该驱动，没人喂狗 -> 30s 后芯片强制重启（表现为"卡一屏一会就重启"）。
+ * bring-up 阶段直接在早期把硬件 WDT 关掉。
+ */
+#define MTK_RGU_BASE		0x10007000
+#define MTK_WDT_MODE		0x0000
+#define MTK_WDT_MODE_KEY	0x22000000
+#define MTK_WDT_MODE_ENABLE	BIT(0)
+
+static void __init mt6893_wdt_disable(void)
+{
+	void __iomem *base;
+	u32 reg;
+
+	base = ioremap(MTK_RGU_BASE, 0x100);
+	if (!base) {
+		pr_err("mt6893: failed to ioremap RGU\n");
+		return;
+	}
+
+	reg = readl(base + MTK_WDT_MODE);
+	reg &= ~MTK_WDT_MODE_ENABLE;   /* 清 enable 位 */
+	reg |= MTK_WDT_MODE_KEY;       /* 写操作必须带 KEY，否则无效 */
+	writel(reg, base + MTK_WDT_MODE);
+
+	pr_notice("mt6893: hardware watchdog disabled (MODE=0x%08x)\n", reg);
+	iounmap(base);
+}
+
 static void __init mtk_infracfg_ao_init(struct device_node *node)
 {
 	struct clk_hw_onecell_data *clk_data;
 	int i, ret;
+
+	mt6893_wdt_disable();
 
 	clk_data = mtk_alloc_clk_data(INFRACFG_AO_NR_CLK);
 	if (!clk_data)
