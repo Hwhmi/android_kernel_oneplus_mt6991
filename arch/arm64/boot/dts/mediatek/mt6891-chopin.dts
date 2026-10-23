@@ -19,6 +19,13 @@
 		method = "smc";
 	};
 
+	/* 26MHz 基准时钟，多个外设用它做波特率/参考 */
+	clk26m: clk26m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <26000000>;
+	};
+
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -35,7 +42,21 @@
 
 	memory@40000000 {
 		device_type = "memory";
-		reg = <0x0 0x40000000 0x0 0x1f000000>;	/* 496MB，实测可用段 */
+		reg = <0x0 0x40000000 0x0 0x1f000000>;	/* 496MB 实测可用段 */
+	};
+
+	/*
+	 * simple-framebuffer：lk 启动时已初始化显示，framebuffer 留在
+	 * 0x77a20000（40MB，见 ramoops 里的 mblock-19-framebuffer）。
+	 * 内核直接用它输出，不需要 MTK 的 mtk_drm。
+	 */
+	framebuffer@77a20000 {
+		compatible = "simple-framebuffer";
+		reg = <0x0 0x77a20000 0x0 0x2800000>;
+		width = <1080>;
+		height = <2400>;
+		stride = <4320>;
+		format = "a8r8g8b8";
 	};
 
 	gic: interrupt-controller@c000000 {
@@ -57,11 +78,47 @@
 		clock-frequency = <13000000>;
 	};
 
+	/*
+	 * 时钟控制器（infracfg_ao）→ clk-mt6893.c 靠 compatible
+	 * "mediatek,infracfg_ao" 匹配。缺这个节点时钟驱动不会注册。
+	 */
+	infracfg_ao: infracfg_ao@10001000 {
+		compatible = "mediatek,infracfg_ao", "syscon";
+		reg = <0x0 0x10001000 0x0 0x1000>;
+		#clock-cells = <1>;
+	};
+
+	/*
+	 * UFS 控制器。去掉原厂的 vcc-supply（指向 PMIC LDO，6.6 无该
+	 * regulator，会导致 -EPROBE_DEFER）。时钟 ID 与实测一致：
+	 * 80=UFS_CG 63=UNIPRO_SYSCLK 65=UFS_MP_SAP 81=AES_UFSFDE
+	 */
+	ufshci: ufshci@11270000 {
+		compatible = "mediatek,ufshci";
+		reg = <0x0 0x11270000 0x0 0x2300>;
+		interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
+		clock-names = "ufs-clk", "ufs-unipro-clk",
+			      "ufs-mp-clk", "ufs-crypto-clk";
+		clocks = <&infracfg_ao 80>, <&infracfg_ao 63>,
+			 <&infracfg_ao 65>, <&infracfg_ao 81>;
+		status = "okay";
+	};
+
 	serial0: serial@11002000 {
 		compatible = "mediatek,mt6577-uart";
 		reg = <0x0 0x11002000 0x0 0x1000>;
 		interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk26m>, <&infracfg_ao 23>;
+		clock-names = "baud", "bus";
+		status = "okay";
+	};
 
+	serial1: serial@11003000 {
+		compatible = "mediatek,mt6577-uart";
+		reg = <0x0 0x11003000 0x0 0x1000>;
+		interrupts = <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk26m>, <&infracfg_ao 24>;
+		clock-names = "baud", "bus";
 		status = "okay";
 	};
 };
