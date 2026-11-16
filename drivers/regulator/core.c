@@ -41,6 +41,7 @@ static LIST_HEAD(regulator_ena_gpio_list);
 static LIST_HEAD(regulator_supply_alias_list);
 static LIST_HEAD(regulator_coupler_list);
 static bool has_full_constraints;
+static bool regulator_ignore_unused;
 
 static struct dentry *debugfs_root;
 
@@ -6290,6 +6291,18 @@ static int __init regulator_init_complete(void)
 		has_full_constraints = true;
 
 	/*
+	 * Platforms that are still being brought up have plenty of rails with
+	 * no driver claiming them yet, and on some of those -- MT6359's VS1 is
+	 * one -- disabling the rail powers the SoC down rather than saving any
+	 * energy.  Let such a kernel opt out from the command line instead of
+	 * having to carry always-on constraints for every rail in DT.
+	 */
+	if (regulator_ignore_unused) {
+		pr_warn("regulator: Not disabling unused regulators\n");
+		return 0;
+	}
+
+	/*
 	 * We punt completion for an arbitrary amount of time since
 	 * systems like distros will load many drivers from userspace
 	 * so consumers might not always be ready yet, this is
@@ -6306,3 +6319,10 @@ static int __init regulator_init_complete(void)
 	return 0;
 }
 late_initcall_sync(regulator_init_complete);
+
+static int __init regulator_ignore_unused_setup(char *buf)
+{
+	regulator_ignore_unused = true;
+	return 1;
+}
+__setup("regulator_ignore_unused", regulator_ignore_unused_setup);

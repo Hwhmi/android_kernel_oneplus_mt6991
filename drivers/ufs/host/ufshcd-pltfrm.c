@@ -139,6 +139,13 @@ int ufshcd_populate_vreg(struct device *dev, const char *name,
 		goto out;
 	}
 
+	snprintf(prop_name, MAX_PROP_SIZE, "%s-fixed-regulator", name);
+	if (of_property_read_bool(np, prop_name)) {
+		dev_info(dev, "%s: %s is fixed, assuming enabled\n",
+				__func__, prop_name);
+		goto out;
+	}
+
 	vreg = devm_kzalloc(dev, sizeof(*vreg), GFP_KERNEL);
 	if (!vreg)
 		return -ENOMEM;

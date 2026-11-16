@@ -103,6 +103,37 @@ force_gpt_fn(char *str)
 }
 __setup("gpt", force_gpt_fn);
 
+struct replace_partition_name {
+	const char *old_name;
+	const char *new_name;
+};
+
+static const struct replace_partition_name oplus_partition_names[] = {
+	{ "opporeserve1", "oplusreserve1" },
+	{ "opporeserve2", "oplusreserve2" },
+	{ "opporeserve3", "oplusreserve3" },
+	{ "opporeserve4", "oplusreserve4" },
+	{ "opporeserve5", "oplusreserve5" },
+	{ "opporeserve6", "oplusreserve6" },
+	{ "oppo_custom", "oplus_custom" },
+};
+
+static void oplus_replace_partition_name(char *name)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(oplus_partition_names); i++) {
+		if (!strncmp(name, oplus_partition_names[i].old_name,
+			     strlen(oplus_partition_names[i].old_name))) {
+			pr_warn("rename partition name: %s->%s\n", name,
+				oplus_partition_names[i].new_name);
+			strscpy(name, oplus_partition_names[i].new_name,
+				PARTITION_META_INFO_VOLNAMELTH);
+			return;
+		}
+	}
+}
+
 
 /**
  * efi_crc32() - EFI version of crc32 function
@@ -748,6 +779,7 @@ int efi_partition(struct parsed_partitions *state)
 		label_max = min(ARRAY_SIZE(info->volname) - 1,
 				ARRAY_SIZE(ptes[i].partition_name));
 		utf16_le_to_7bit(ptes[i].partition_name, label_max, info->volname);
+		oplus_replace_partition_name(info->volname);
 		state->parts[i + 1].has_info = true;
 	}
 	kfree(ptes);

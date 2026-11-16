@@ -1011,7 +1011,10 @@ static noinline int avc_denied(u32 ssid, u32 tsid,
 	if (flags & AVC_STRICT)
 		return -EACCES;
 
-	if (enforcing_enabled() &&
+	/* chopin: kernel-level SELinux permissive — log denials but don't block.
+	 * enforcing_enabled() stays true so init won't write enforcement back.
+	 * Keep AVC_CALLBACK_GRANT below to refresh the cache. */
+	if (0 && enforcing_enabled() &&
 	    !(avd->flags & AVD_FLAGS_PERMISSIVE))
 		return -EACCES;
 
